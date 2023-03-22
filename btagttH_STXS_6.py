@@ -13,6 +13,8 @@ jetpt=ROOT.TH1D("jetpt", "all jets", 31, 25, 800 )
 hs = ROOT.TList()
 runs=['a','d','e']
 runslumi=[36207.66,44307.4,58450.1]
+eventcount=0
+jetcalcount=0
 for i in range(0,len(runs)):
     inFile = ROOT.TFile.Open('/Users/zefranrozario/Desktop/ttHbb_legacy/boosted/ttH_PP8_mc16'+str(runs[i])+'.root')
     tree = inFile.Get("nominal_Loose")
@@ -28,6 +30,7 @@ for i in range(0,len(runs)):
         passjetsel_b=False
         passjetsel_c=False
         passjetsel_light=False
+        eventoutofcal=False
         bjets=[]
         cjets=[]
         lightjets=[]
@@ -40,16 +43,27 @@ for i in range(0,len(runs)):
                 jetpt_b.Fill(ptjet,weight)
                 #jetpt_total.Fill(ptjet,weight)
                 passjetsel_b=True
+                
+                if ptjet > 400 and tree.jet_truthflav[j]==5:
+                    eventoutofcal=True
+                    
             elif tree.boostedRecoHiggsPt>450000 and tree.jet_truthflav[j]==4:
                 cjets.append(tree.jet_pt[j])
                 jetpt_c.Fill(ptjet,weight)
                 #jetpt_total.Fill(ptjet,weight)
                 passjetsel_c=True
+
+                if ptjet > 250 and tree.jet_truthflav[j]==4:
+                    eventoutofcal=True
+    
             elif tree.boostedRecoHiggsPt>450000 and ((tree.jet_truthflav[j]==0) or (tree.jet_truthflav[j]==15)):
                 lightjets.append(tree.jet_pt[j])
                 jetpt_light.Fill(ptjet,weight)
                 #jetpt_total.Fill(ptjet,weight)
                 passjetsel_light=True
+
+                if ptjet > 300 and ((tree.jet_truthflav[j]==0) or (tree.jet_truthflav[j]==15)):
+                    eventoutofcal=True
                 
         if passjetsel_b==True and tree.boostedRecoHiggsPt>450000:
             eventhist_b.Fill(bjets[0]/1000,weight)
@@ -60,13 +74,18 @@ for i in range(0,len(runs)):
             eventhist_c.Fill(cjets[0]/1000,weight)
             eventpt_total.Fill(cjets[0]/1000,weight)
             
+            
         if passjetsel_light==True and tree.boostedRecoHiggsPt>450000:
             eventhist_light.Fill(lightjets[0]/1000,weight)
             eventpt_total.Fill(lightjets[0]/1000,weight)
             
+        if eventoutofcal==True:
+            jetcalcount+=weight
+            
+        
+        if ((passjetsel_b==True) or  (passjetsel_c==True) or (passjetsel_light==True)):
     
-                           
-                           
+            eventcount+=weight     
 
 
 outHistFile = ROOT.TFile.Open("jetpttureb_ttH_STXS_6.root" ,"RECREATE")
@@ -98,9 +117,8 @@ jetpt_total.Merge(hs)
 b_frac_jet=(fracjet_b/jetpt_b.Integral(1,jetpt_b.GetNbinsX()+1))
 c_frac_jet=(fracjet_c/jetpt_c.Integral(1,jetpt_c.GetNbinsX()+1))
 light_frac_jet=(fracjet_light/jetpt_light.Integral(1,jetpt_light.GetNbinsX()+1))
-
 b_frac_event=(fracevent_b/eventhist_b.Integral(1,eventhist_b.GetNbinsX()+1))
-c_frac_event=(fracevent_c/eventhist_c.Integral(1,eventhist_c.GetNbinsX()+1))
+c_frac_event=(fracevent_c/eventcount) #eventhist_c.Integral(1,eventhist_c.GetNbinsX()+1))
 light_frac_event=(fracevent_light/eventhist_light.Integral(1,eventhist_light.GetNbinsX()+1))
 
 print('The Fraction of b jets above 400GeV: '+str(b_frac_jet))
@@ -116,7 +134,7 @@ print('Total number of jets: '+str(jetpt.GetEntries()))
 
 print('The fraction of jets outside the calibration: '+str((jetpt_b.GetBinContent(jetpt_b.FindFixBin( 400.0 ),jetpt_b.GetNbinsX()+1)+jetpt_c.GetBinContent(jetpt_c.FindFixBin( 250.0 ), jetpt_c.GetNbinsX()+1)+jetpt_light.GetBinContent(jetpt_light.FindFixBin( 300.0 ), jetpt_light.GetNbinsX()+1))/jetpt.GetBinContent(1,jetpt.GetNbinsX()+1)))
 print("The Fraciton of events with at least one jet outside the calibration:"+
-str((eventhist_b.GetBinContent(eventhist_b.FindFixBin( 400.0 ), eventhist_b.GetNbinsX()+1)+eventhist_c.GetBinContent(eventhist_c.FindFixBin( 250.0 ), eventhist_c.GetNbinsX()+1)+eventhist_light.GetBinContent(eventhist_light.FindFixBin( 300.0 ), eventhist_light.GetNbinsX()+1))/eventpt_total.GetBinContent(1,eventpt_total.GetNbinsX()+1)))
+str((eventhist_b.Integral(eventhist_b.FindFixBin( 400.0 ), eventhist_b.GetNbinsX()+1)+eventhist_c.Integral(eventhist_c.FindFixBin( 250.0 ), eventhist_c.GetNbinsX()+1)+eventhist_light.Integral(eventhist_light.FindFixBin( 300.0 ), eventhist_light.GetNbinsX()+1))/eventcount))
 
 
 
@@ -124,3 +142,12 @@ str((eventhist_b.GetBinContent(eventhist_b.FindFixBin( 400.0 ), eventhist_b.GetN
 data=[['b',400,b_frac_jet,b_frac_event],['c',250,c_frac_jet,c_frac_event],['light',300,light_frac_jet,light_frac_event]]
 
 print(tabulate(data,headers=['Flavour','Calibration threshold (GeV)','Fraction of jets \noutside calibration', 'Fraction of events with at \nleast one jet outisde calibration']))
+
+
+
+print(eventcount)
+print((eventhist_b.GetBinContent(eventhist_b.FindFixBin( 400.0 ), eventhist_b.GetNbinsX()+1)+eventhist_c.GetBinContent(eventhist_c.FindFixBin( 250.0 ), eventhist_c.GetNbinsX()+1)+eventhist_light.GetBinContent(eventhist_light.FindFixBin( 300.0 ), eventhist_light.GetNbinsX()+1))/eventcount)
+
+print(jetcalcount/eventcount)
+print(jetcalcount)
+print(eventcount/jetcalcount)
